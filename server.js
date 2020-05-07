@@ -1,18 +1,45 @@
-const express = require('express');
+const express = require('express')
+const app = express()
+const http = require('http').Server(app)
+const io = require('socket.io')(http)
+const port = process.env.PORT || 3000
 
-const app = express();
-const port = 3000;
+app.use(express.static(__dirname + "/public"))
+let clients = 0
 
-// Set public folder as root
-app.use(express.static('public'));
+io.on('connection', function (socket) {
+    socket.on("NewClient", function () {
+        if (clients < 2) {
+            if (clients == 1) {
+                this.emit('CreatePeer')
+            }
+        }
+        else
+            this.emit('SessionActive')
+        clients++;
+    })
+    socket.on('Offer', SendOffer)
+    socket.on('Answer', SendAnswer)
+    socket.on('disconnect', Disconnect)
+})
 
-// Provide access to node_modules folder
-app.use('/scripts', express.static(`${__dirname}/node_modules/`));
+function Disconnect() {
+    if (clients > 0) {
+        if (clients <= 2)
+            this.broadcast.emit("Disconnect")
+        clients--
+    }
+}
 
-// Redirect all traffic to index.html
-app.use((req, res) => res.sendFile(`${__dirname}/public/index.html`));
+function SendOffer(offer) {
+    this.broadcast.emit("BackOffer", offer)
+}
 
-app.listen(port, () => {
-  // eslint-disable-next-line no-console
-  console.info('listening on %d', port);
-});
+function SendAnswer(data) {
+    this.broadcast.emit("BackAnswer", data)
+}
+
+http.listen(port, () => console.log(`Active on ${port} port`))
+
+
+
